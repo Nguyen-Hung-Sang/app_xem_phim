@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "215526392973",
+    "project_id": "giai-tri-tong-hop-fcee6",
+    "storage_bucket": "giai-tri-tong-hop-fcee6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:215526392973:android:eb645f9ca868fd54a10ec4",
+        "android_client_info": {
+          "package_name": "com.example.app_doc_truyen"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXvfHxhiYoCObt_ExcwioFFU28_vIBxq0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:215526392973:android:eb645f9ca868fd54a10ec4",
+        "android_client_info": {
+          "package_name": "com.example.app_xem_phim"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAXvfHxhiYoCObt_ExcwioFFU28_vIBxq0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
