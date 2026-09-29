@@ -80,7 +80,7 @@ class WelcomeScreen extends StatelessWidget {
                     height: 56,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
-                        colors: [Color(0xFF0088FF), Color(0xFF0055FF)],
+                        colors: [Color(0xFF7C3AED), Color(0xFF7C3AED)],
                       ),
                       borderRadius: BorderRadius.circular(28),
                       boxShadow: [

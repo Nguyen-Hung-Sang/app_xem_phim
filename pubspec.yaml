@@ -1,6 +1,5 @@
 name: app_xem_phim
-description: "Ứng dụng xem phim và ngắm ảnh CineFrame"
-
+description: "Ứng dụng xem phim và ngắm ảnh"
 publish_to: "none"
 
 version: 1.0.0+1
@@ -20,9 +19,9 @@ dependencies:
   firebase_auth: ^5.4.0 # Đăng nhập & Đăng ký tài khoản
   cloud_firestore: ^5.6.0 # Lấy thông tin User (Role) & Link Media động
 
-  # --- THƯ VIỆN HIỂN THỊ PHIM & CÁC TRANG WEB ---
-  flutter_inappwebview: ^6.1.5 # Trình duyệt WebView mạnh mẽ tích hợp AdBlock & Chống chặn DNS
-  shared_preferences: ^2.5.5
+  # --- THƯ VIỆN LƯU BỘ NHỚ VÀ XEM PHIM ---
+  flutter_inappwebview: ^6.1.5 # Trình duyệt WebView
+  shared_preferences: ^2.5.5 # Lưu nhớ mật khẩu & trạng thái đăng nhập
 
 dev_dependencies:
   flutter_test:
@@ -33,6 +32,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Khai báo hình ảnh trong ứng dụng (Đã di chuyển về đúng mục flutter)
+  # Khai báo thư mục chứa hình ảnh/icon trong ứng dụng
   assets:
-    - assets/icons/welcome_screen.png
+    - assets/icons/
