@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../features/auth/screens/login_screen.dart';
+import '../../features/profile/screens/account_info_screen.dart';
 
 class MediaSource {
   final String id;
@@ -78,19 +80,19 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
   @override
   Widget build(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
-    final userName = currentUser?.displayName ??
-        currentUser?.email?.split('@').first ??
-        'Người dùng';
 
     return Scaffold(
-      backgroundColor:
-          const Color(0xFF121218), // Nền tối Cinema chuẩn App Xem Phim
+      backgroundColor: const Color(0xFF121218), // Nền tối Cinema
       appBar: AppBar(
         backgroundColor: const Color(0xFF181824),
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
         ),
         title: const Text(
           'Chọn Nguồn Xem Phim',
@@ -118,61 +120,113 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. CARD THÔNG TIN NGƯỜI DÙNG (User Profile Header)
-                    InkWell(
-                      onTap: () {},
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 8.0, horizontal: 4.0),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 24,
-                              backgroundColor: Colors.deepPurple,
-                              child: Text(
-                                userName.isNotEmpty
-                                    ? userName[0].toUpperCase()
-                                    : 'U',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 20,
-                                ),
+                    // 1. CARD PROFILE NGƯỜI DÙNG (Lấy trường fullName từ Firestore hiển thị)
+                    StreamBuilder<DocumentSnapshot>(
+                      stream: currentUser != null
+                          ? FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(currentUser.uid)
+                              .snapshots()
+                          : null,
+                      builder: (context, snapshot) {
+                        String userName = currentUser?.displayName ??
+                            currentUser?.email?.split('@').first ??
+                            'Người dùng';
+                        String userRole = 'User';
+
+                        if (snapshot.hasData &&
+                            snapshot.data != null &&
+                            snapshot.data!.exists) {
+                          final data =
+                              snapshot.data!.data() as Map<String, dynamic>?;
+                          if (data != null) {
+                            userRole = data['role'] ?? 'User';
+
+                            // Ưu tiên đọc trường fullName từ Firestore
+                            if (data['fullName'] != null &&
+                                data['fullName'].toString().trim().isNotEmpty) {
+                              userName = data['fullName'];
+                            } else if (data['name'] != null &&
+                                data['name'].toString().trim().isNotEmpty) {
+                              userName = data['name'];
+                            }
+                          }
+                        }
+
+                        final bool isAdmin = userRole.toLowerCase() == 'admin';
+
+                        return InkWell(
+                          onTap: () {
+                            // Chuyển sang Màn hình Thông tin tài khoản / Profile
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const AccountInfoScreen(),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    userName,
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 8.0, horizontal: 4.0),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 24,
+                                  backgroundColor: Colors.deepPurple,
+                                  child: Text(
+                                    userName.isNotEmpty
+                                        ? userName[0].toUpperCase()
+                                        : 'U',
                                     style: const TextStyle(
                                       color: Colors.white,
-                                      fontSize: 16,
                                       fontWeight: FontWeight.bold,
+                                      fontSize: 20,
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  const Text(
-                                    'Cấp độ: VIP MEMBER',
-                                    style: TextStyle(
-                                      color: Colors.deepPurpleAccent,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // VÙNG KHOANH TRÒN: Hiển thị fullName thay cho Email
+                                      Text(
+                                        userName,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Vai trò: ${userRole.toUpperCase()}',
+                                        style: TextStyle(
+                                          color: isAdmin
+                                              ? Colors.redAccent
+                                              : (userRole.toLowerCase() == 'vip'
+                                                  ? Colors.amber
+                                                  : Colors.deepPurpleAccent),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
+                                ),
+                                const Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.grey,
+                                ),
+                              ],
                             ),
-                            const Icon(
-                              Icons.chevron_right,
-                              color: Colors.grey,
-                            ),
-                          ],
-                        ),
-                      ),
+                          ),
+                        );
+                      },
                     ),
 
                     const SizedBox(height: 20),
@@ -294,8 +348,7 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                   width: 10,
                                   height: 10,
                                   decoration: const BoxDecoration(
-                                    color: Color(
-                                        0xFF10B981), // Thay thế cho Colors.emerald
+                                    color: Color(0xFF10B981),
                                     shape: BoxShape.circle,
                                   ),
                                 ),
@@ -344,8 +397,7 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                           Text(
                                             source.status,
                                             style: const TextStyle(
-                                              color: Color(
-                                                  0xFF10B981), // Thay thế cho Colors.emerald
+                                              color: Color(0xFF10B981),
                                               fontSize: 12,
                                               fontWeight: FontWeight.bold,
                                             ),
