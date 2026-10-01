@@ -4,7 +4,7 @@ class Movie2Source extends BaseMediaSource {
   Movie2Source()
       : super(
           id: 'Movie_2',
-          name: 'Nguồn Phim 2',
+          name: 'Motchillt',
           type: 'movie',
           defaultUrl: 'https://motchillt.fm/',
           tag: 'Phim Vietsub',

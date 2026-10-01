@@ -3,13 +3,14 @@ import 'base_media_source.dart';
 class Picture1Source extends BaseMediaSource {
   Picture1Source()
       : super(
-          id: 'Picture_1',
+          id: 'Picture 1', // Khớp chính xác với Document ID "Picture 1" trên Firebase
           name: 'Nguồn Ảnh 1',
           type: 'picture',
-          defaultUrl: 'https://capture1.example.com/',
+          defaultUrl: 'https://cosplaytele.com/',
           tag: 'Hình Ảnh HD',
           badge: 'Tốc độ cao',
           status: 'Ổn định',
+          allowedRoles: ['admin', 'vip'], // Chỉ Admin và VIP mới xem được
         );
 
   @override

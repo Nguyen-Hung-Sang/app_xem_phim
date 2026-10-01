@@ -4,7 +4,7 @@ class Movie1Source extends BaseMediaSource {
   Movie1Source()
       : super(
           id: 'Movie 1', // 👈 Đã sửa ID thành 'Movie 1' để đồng bộ với Firestore
-          name: 'Nguồn Phim 1',
+          name: 'SaiGonPhim',
           type: 'movie',
           defaultUrl: 'https://saigonphim.net/',
           tag: 'Phim Vietsub',

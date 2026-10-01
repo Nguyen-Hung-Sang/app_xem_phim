@@ -3,19 +3,117 @@ import 'base_media_source.dart';
 class Picture2Source extends BaseMediaSource {
   Picture2Source()
       : super(
-          id: 'Picture_2',
+          id: 'Picture 2', // Khớp chính xác với Document ID trên Firebase
           name: 'Nguồn Ảnh 2',
           type: 'picture',
-          defaultUrl: 'https://capture2.example.com/',
-          tag: 'Hình Ảnh 4K',
+          defaultUrl: 'https://xx.knit.bid/vi/', // Cập nhật URL mới
+          tag: 'Hình Ảnh HD',
           badge: 'Ổn định',
           status: 'Ổn định',
+          allowedRoles: ['admin', 'vip'], // Chỉ Admin và VIP mới xem được
         );
 
   @override
   List<String> getBlockedAdDomains() {
     return [
-      'histats.com',
+      'popunder.net',
+      'adnetwork.com',
+      'doubleclick.net',
+      'googlesyndication.com',
+      'exoclick.com',
+      'juicyads.com',
+      'popads.net',
+      'popcash.net',
+      'hilltopads.com',
+      'monetag.com',
+      'adsterra.com',
+      'realsrv.com',
     ];
+  }
+
+  @override
+  String getAdBlockScript() {
+    return '''
+      (function() {
+        // 1. Chặn hoàn toàn Popup / Popunder khi chạm vào màn hình
+        window.open = function() { return null; };
+
+        // 2. Chèn CSS diệt iframe quảng cáo & các khối banner tài trợ
+        if (!document.getElementById('fix-adblock-style')) {
+          const style = document.createElement('style');
+          style.id = 'fix-adblock-style';
+          style.textContent = `
+            iframe,
+            .adsbygoogle,
+            .popunder,
+            div[class*="sponsor"],
+            div[id*="sponsor"],
+            a[href*="exoclick"],
+            a[href*="juicyads"],
+            a[href*="stripchat"],
+            a[href*="realsrv"] {
+              display: none !important;
+              visibility: hidden !important;
+              opacity: 0 !important;
+              pointer-events: none !important;
+              height: 0 !important;
+            }
+          `;
+          if (document.head) document.head.appendChild(style);
+        }
+
+        function cleanAdsAndLoadThumbnails() {
+          // 3. TẢI ẢNH BÀI VIẾT (LAZY-LOAD): Ép tải link ảnh thực tế
+          document.querySelectorAll('img').forEach(img => {
+            if (img.closest('iframe')) return;
+
+            const realSrc = img.getAttribute('data-src') || 
+                            img.getAttribute('data-original') || 
+                            img.getAttribute('data-lazy-src') ||
+                            img.getAttribute('srcset');
+
+            if (realSrc) {
+              const url = realSrc.split(' ')[0].trim();
+              if (url && (img.src === '' || img.src.includes('data:image') || img.naturalWidth === 0)) {
+                img.src = url;
+              }
+            }
+
+            // Đảm bảo ảnh luôn hiển thị
+            img.style.setProperty('display', 'block', 'important');
+            img.style.setProperty('opacity', '1', 'important');
+            img.style.setProperty('visibility', 'visible', 'important');
+          });
+
+          // 4. DIỆT QUẢNG CÁO NỔI DÍNH Ở ĐÁY MÀN HÌNH
+          document.querySelectorAll('div, section, aside, body > *').forEach(el => {
+            if (el.tagName === 'NAV' || el.tagName === 'HEADER' || el.querySelector('nav')) return;
+            if (el.querySelector('article') || el.classList.contains('post') || el.classList.contains('item')) return;
+
+            const style = window.getComputedStyle(el);
+            if (style.position === 'fixed' || style.position === 'sticky') {
+              if (el.clientWidth < 70 && el.clientHeight < 70) return;
+
+              el.style.setProperty('display', 'none', 'important');
+              el.remove();
+            }
+          });
+
+          // 5. ẨN KHUNG CHỨA DÒNG CHỮ "Sponsored ads"
+          document.querySelectorAll('div, p, span').forEach(el => {
+            if (el.children.length === 0 && el.textContent.trim().toLowerCase().includes('sponsored')) {
+              let parent = el.parentElement;
+              if (parent && !parent.querySelector('article')) {
+                parent.style.setProperty('display', 'none', 'important');
+              }
+            }
+          });
+        }
+
+        // Chạy liên tục để chặn quảng cáo tải chậm
+        cleanAdsAndLoadThumbnails();
+        setInterval(cleanAdsAndLoadThumbnails, 500);
+      })();
+    ''';
   }
 }

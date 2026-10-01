@@ -40,7 +40,7 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
     );
   }
 
-  // BỔ SUNG: Hàm hiển thị Popup để Admin sửa Link và tự động cập nhật lên Firestore
+  // Hàm hiển thị Popup để Admin sửa Link và tự động cập nhật lên Firestore
   void _showEditUrlDialog(BuildContext context, BaseMediaSource source) {
     final textController = TextEditingController(text: source.currentUrl);
 
@@ -93,7 +93,6 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                 final newUrl = textController.text.trim();
                 if (newUrl.isNotEmpty) {
                   try {
-                    // Cập nhật trường URL của Document tương ứng trên Firestore
                     await FirebaseFirestore.instance
                         .collection('Links Media')
                         .doc(source.id)
@@ -287,21 +286,36 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                     StreamBuilder<List<BaseMediaSource>>(
                       stream: _sourceManager.getSourcesStream(),
                       builder: (context, snapshot) {
-                        final sources = snapshot.data ?? _sourceManager.sources;
+                        final rawSources =
+                            snapshot.data ?? _sourceManager.sources;
+                        final bool isAdmin =
+                            _currentUserRole.toLowerCase() == 'admin';
+
+                        // Ẩn tất cả các nguồn mà Role hiện tại không có quyền truy cập (ngoại trừ Admin)
+                        final sources = isAdmin
+                            ? rawSources
+                            : rawSources
+                                .where((s) => s.hasAccess(_currentUserRole))
+                                .toList();
 
                         if (sources.isEmpty) {
                           return const Center(
                             child: Padding(
                               padding: EdgeInsets.all(32.0),
-                              child: CircularProgressIndicator(
-                                color: Colors.deepPurpleAccent,
+                              child: Text(
+                                'Không có nguồn phim nào khả dụng cho vai trò của bạn.',
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 14,
+                                ),
                               ),
                             ),
                           );
                         }
 
-                        // Đồng bộ _selectedSource với instance mới nhất từ Stream
-                        if (_selectedSource == null) {
+                        // Đồng bộ _selectedSource với instance mới nhất và đảm bảo nằm trong danh sách đã lọc
+                        if (_selectedSource == null ||
+                            !sources.any((s) => s.id == _selectedSource!.id)) {
                           _selectedSource = sources.first;
                         } else {
                           _selectedSource = sources.firstWhere(
@@ -309,9 +323,6 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                             orElse: () => sources.first,
                           );
                         }
-
-                        final bool isAdmin =
-                            _currentUserRole.toLowerCase() == 'admin';
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,20 +376,10 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          _selectedSource!.currentUrl,
-                                          style: const TextStyle(
-                                            color: Colors.deepPurpleAccent,
-                                            fontSize: 12,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
+                                        // Đã ẩn Text URL hiển thị ở khung đỏ
                                       ],
                                     ),
                                   ),
-                                  // BỔ SUNG: Nút sửa URL trong Active Box dành riêng cho Admin
                                   if (isAdmin)
                                     IconButton(
                                       icon: const Icon(
@@ -508,14 +509,7 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                                   ),
                                                 ],
                                               ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                source.currentUrl,
-                                                style: TextStyle(
-                                                  color: Colors.grey[400],
-                                                  fontSize: 12,
-                                                ),
-                                              ),
+                                              // Đã ẩn Text URL ở khung đỏ trong danh sách
                                               const SizedBox(height: 8),
 
                                               // Tag Phim
@@ -543,7 +537,6 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                           ),
                                         ),
 
-                                        // BỔ SUNG: Nút sửa nhanh từng nguồn trong danh sách dành cho Admin
                                         if (isAdmin)
                                           IconButton(
                                             icon: const Icon(
