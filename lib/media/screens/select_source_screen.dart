@@ -24,7 +24,6 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
   @override
   void initState() {
     super.initState();
-    // BỔ SUNG: Kiểm tra an toàn trước khi lấy phần tử đầu tiên
     if (_sourceManager.sources.isNotEmpty) {
       _selectedSource = _sourceManager.sources.first;
     }
@@ -38,6 +37,97 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
       context,
       MaterialPageRoute(builder: (context) => const LoginScreen()),
       (route) => false,
+    );
+  }
+
+  // BỔ SUNG: Hàm hiển thị Popup để Admin sửa Link và tự động cập nhật lên Firestore
+  void _showEditUrlDialog(BuildContext context, BaseMediaSource source) {
+    final textController = TextEditingController(text: source.currentUrl);
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF181824),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            'Sửa Link - ${source.name}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          content: TextField(
+            controller: textController,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              labelText: 'Đường dẫn URL mới',
+              labelStyle: TextStyle(color: Colors.grey),
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.deepPurpleAccent),
+              ),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.deepPurple),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text(
+                'Hủy',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurpleAccent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () async {
+                final newUrl = textController.text.trim();
+                if (newUrl.isNotEmpty) {
+                  try {
+                    // Cập nhật trường URL của Document tương ứng trên Firestore
+                    await FirebaseFirestore.instance
+                        .collection('Links Media')
+                        .doc(source.id)
+                        .set({'URL': newUrl}, SetOptions(merge: true));
+
+                    if (mounted) {
+                      Navigator.pop(dialogContext);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Đã cập nhật URL cho ${source.name}!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Lỗi khi cập nhật Firestore: $e'),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    }
+                  }
+                }
+              },
+              child: const Text(
+                'Lưu',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -199,7 +289,6 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                       builder: (context, snapshot) {
                         final sources = snapshot.data ?? _sourceManager.sources;
 
-                        // BỔ SUNG: Kiểm tra nếu danh sách nguồn đang tải hoặc rỗng
                         if (sources.isEmpty) {
                           return const Center(
                             child: Padding(
@@ -211,7 +300,7 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                           );
                         }
 
-                        // SỬA LỖI KẸT URL: Đồng bộ _selectedSource với instance mới nhất từ Stream
+                        // Đồng bộ _selectedSource với instance mới nhất từ Stream
                         if (_selectedSource == null) {
                           _selectedSource = sources.first;
                         } else {
@@ -220,6 +309,9 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                             orElse: () => sources.first,
                           );
                         }
+
+                        final bool isAdmin =
+                            _currentUserRole.toLowerCase() == 'admin';
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,6 +378,18 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                       ],
                                     ),
                                   ),
+                                  // BỔ SUNG: Nút sửa URL trong Active Box dành riêng cho Admin
+                                  if (isAdmin)
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.edit_note_rounded,
+                                        color: Colors.amber,
+                                        size: 28,
+                                      ),
+                                      tooltip: 'Sửa link nguồn này',
+                                      onPressed: () => _showEditUrlDialog(
+                                          context, _selectedSource!),
+                                    ),
                                 ],
                               ),
                             ),
@@ -438,6 +542,19 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                             ],
                                           ),
                                         ),
+
+                                        // BỔ SUNG: Nút sửa nhanh từng nguồn trong danh sách dành cho Admin
+                                        if (isAdmin)
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.edit_outlined,
+                                              color: Colors.amber,
+                                              size: 20,
+                                            ),
+                                            tooltip: 'Chỉnh sửa nguồn này',
+                                            onPressed: () => _showEditUrlDialog(
+                                                context, source),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -463,7 +580,6 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                   onPressed: _selectedSource == null
                       ? null
                       : () {
-                          // Bổ sung kiểm tra quyền theo Vai trò người dùng (Admin, Vip, User)
                           if (!_selectedSource!.hasAccess(_currentUserRole)) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -476,7 +592,6 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                             return;
                           }
 
-                          // Mở màn hình Web View khi có đủ quyền
                           Navigator.push(
                             context,
                             MaterialPageRoute(
