@@ -4,7 +4,7 @@ class Picture1Source extends BaseMediaSource {
   Picture1Source()
       : super(
           id: 'Picture 1', // Khớp chính xác với Document ID "Picture 1" trên Firebase
-          name: 'Nguồn Ảnh 1',
+          name: 'Cosplaytele',
           type: 'picture',
           defaultUrl: 'https://cosplaytele.com/',
           tag: 'Hình Ảnh HD',

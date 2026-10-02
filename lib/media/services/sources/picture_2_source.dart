@@ -4,7 +4,7 @@ class Picture2Source extends BaseMediaSource {
   Picture2Source()
       : super(
           id: 'Picture 2', // Khớp chính xác với Document ID trên Firebase
-          name: 'Nguồn Ảnh 2',
+          name: 'knit',
           type: 'picture',
           defaultUrl: 'https://xx.knit.bid/vi/', // Cập nhật URL mới
           tag: 'Hình Ảnh HD',
@@ -38,12 +38,15 @@ class Picture2Source extends BaseMediaSource {
         // 1. Chặn hoàn toàn Popup / Popunder khi chạm vào màn hình
         window.open = function() { return null; };
 
-        // 2. Chèn CSS diệt iframe quảng cáo & các khối banner tài trợ
+        // 2. Chèn CSS diệt iframe quảng cáo & các khối banner tài trợ (Chỉ chặn iframe quảng cáo, không chặn iframe hệ thống/xác thực)
         if (!document.getElementById('fix-adblock-style')) {
           const style = document.createElement('style');
           style.id = 'fix-adblock-style';
           style.textContent = `
-            iframe,
+            iframe[src*="ad"],
+            iframe[src*="pop"],
+            iframe[src*="exoclick"],
+            iframe[src*="juicyads"],
             .adsbygoogle,
             .popunder,
             div[class*="sponsor"],
@@ -85,10 +88,30 @@ class Picture2Source extends BaseMediaSource {
             img.style.setProperty('visibility', 'visible', 'important');
           });
 
-          // 4. DIỆT QUẢNG CÁO NỔI DÍNH Ở ĐÁY MÀN HÌNH
+          // 4. DIỆT QUẢNG CÁO NỔI DÍNH ĐÁY MÀN HÌNH (GIỮ LẠI CỬA SỔ HỎI TUỔI & THÔNG BÁO VIP)
           document.querySelectorAll('div, section, aside, body > *').forEach(el => {
             if (el.tagName === 'NAV' || el.tagName === 'HEADER' || el.querySelector('nav')) return;
             if (el.querySelector('article') || el.classList.contains('post') || el.classList.contains('item')) return;
+
+            // Bổ sung kiểm tra: Nếu chứa nội dung xác nhận tuổi, VIP, nút bấm chọn hoặc thuộc tính Modal thì BỎ QUA không xóa
+            const text = (el.innerText || el.textContent || '').toLowerCase();
+            const isAgeOrVipModal = text.includes('tuổi') || 
+                                    text.includes('age') || 
+                                    text.includes('18') || 
+                                    text.includes('vip') || 
+                                    text.includes('xác nhận') || 
+                                    text.includes('thời gian') ||
+                                    text.includes('đồng ý') ||
+                                    text.includes('confirm') ||
+                                    text.includes('agree') ||
+                                    text.includes('enter') ||
+                                    el.querySelector('button') !== null ||
+                                    el.querySelector('input') !== null ||
+                                    el.classList.contains('modal') ||
+                                    el.classList.contains('dialog') ||
+                                    el.getAttribute('role') === 'dialog';
+
+            if (isAgeOrVipModal) return;
 
             const style = window.getComputedStyle(el);
             if (style.position === 'fixed' || style.position === 'sticky') {

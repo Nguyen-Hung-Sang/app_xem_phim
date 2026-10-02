@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'base_media_source.dart';
 import 'movie_1_source.dart';
 import 'movie_2_source.dart';
+import 'movie_3_source.dart';
+import 'movie_4_source.dart';
 import 'picture_1_source.dart';
 import 'picture_2_source.dart';
 
@@ -9,6 +11,8 @@ class MediaSourceManager {
   final List<BaseMediaSource> _registeredSources = [
     Movie1Source(),
     Movie2Source(),
+    Movie3Source(),
+    Movie4Source(), // Bổ sung Nguồn Phim 4
     Picture1Source(),
     Picture2Source(),
   ];
@@ -32,7 +36,7 @@ class MediaSourceManager {
           (s) => s.id.trim().toLowerCase() == doc.id.trim().toLowerCase(),
         );
 
-        // Chỉ cập nhật URL khi tìm thấy nguồn khớp (tránh ghi đè nhầm vào Nguồn 1)
+        // Chỉ cập nhật URL khi tìm thấy nguồn khớp
         if (matches.isNotEmpty) {
           matches.first.updateUrlFromFirestore(doc);
         }
