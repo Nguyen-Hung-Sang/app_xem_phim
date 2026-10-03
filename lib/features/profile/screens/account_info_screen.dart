@@ -1,6 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:app_xem_phim/media/services/like_service.dart';
+import 'package:app_xem_phim/media/screens/media_web_view_screen.dart';
+import 'package:app_xem_phim/media/services/sources/base_media_source.dart';
+
+// Source tạm thời dùng để truyền thông tin phim vào MediaWebViewScreen
+class GenericMediaSource extends BaseMediaSource {
+  final String _name;
+  final String _url;
+
+  GenericMediaSource({required String name, required String url})
+      : _name = name,
+        _url = url,
+        super(
+            id: '',
+            name: '',
+            type: '',
+            defaultUrl: '',
+            tag: '',
+            badge: '',
+            status: ''); // Kết thúc bằng dấu ';' ở đây, KHÔNG dùng super(...)
+
+  @override
+  String get name => _name;
+
+  @override
+  String get currentUrl => _url;
+
+  @override
+  Map<String, String> getHeaders() => {};
+
+  @override
+  String getAdBlockScript() => '';
+
+  @override
+  List<String> getBlockedAdDomains() => [];
+}
 
 class AccountInfoScreen extends StatefulWidget {
   const AccountInfoScreen({super.key});
@@ -13,8 +49,27 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
   final currentUser = FirebaseAuth.instance.currentUser;
   final CollectionReference _usersRef =
       FirebaseFirestore.instance.collection('users');
+  final LikeService _likeService = LikeService();
 
-  // 1. DIALOG THÊM / SỬA THÔNG TIN NGƯỜI DÙNG
+  final List<String> _genderOptions = const ['Nam', 'Nữ', 'Khác'];
+  final List<String> _roleOptions = const ['Admin', 'Vip', 'User'];
+
+  String _getValidGender(String? gender) {
+    if (gender == null) return 'Nam';
+    return _genderOptions.firstWhere(
+      (g) => g.toLowerCase() == gender.toLowerCase(),
+      orElse: () => 'Nam',
+    );
+  }
+
+  String _getValidRole(String? role) {
+    if (role == null) return 'User';
+    return _roleOptions.firstWhere(
+      (r) => r.toLowerCase() == role.toLowerCase(),
+      orElse: () => 'User',
+    );
+  }
+
   void _showUserDialog({
     String? docId,
     String? currentName,
@@ -24,12 +79,12 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
   }) {
     final nameController = TextEditingController(text: currentName ?? '');
     final emailController = TextEditingController(text: currentEmail ?? '');
-    String selectedGender = currentGender ?? 'Nam';
-    String selectedRole = currentRole ?? 'User';
+    String selectedGender = _getValidGender(currentGender);
+    String selectedRole = _getValidRole(currentRole);
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -86,14 +141,14 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'Nam', child: Text('Nam')),
-                        DropdownMenuItem(value: 'Nữ', child: Text('Nữ')),
-                        DropdownMenuItem(value: 'Khác', child: Text('Khác')),
-                      ],
+                      items: _genderOptions
+                          .map(
+                              (g) => DropdownMenuItem(value: g, child: Text(g)))
+                          .toList(),
                       onChanged: (val) {
-                        if (val != null)
+                        if (val != null) {
                           setDialogState(() => selectedGender = val);
+                        }
                       },
                     ),
                     const SizedBox(height: 12),
@@ -110,14 +165,14 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      items: const [
-                        DropdownMenuItem(value: 'Admin', child: Text('Admin')),
-                        DropdownMenuItem(value: 'Vip', child: Text('Vip')),
-                        DropdownMenuItem(value: 'User', child: Text('User')),
-                      ],
+                      items: _roleOptions
+                          .map(
+                              (r) => DropdownMenuItem(value: r, child: Text(r)))
+                          .toList(),
                       onChanged: (val) {
-                        if (val != null)
+                        if (val != null) {
                           setDialogState(() => selectedRole = val);
+                        }
                       },
                     ),
                   ],
@@ -125,7 +180,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child:
                       const Text('Hủy', style: TextStyle(color: Colors.grey)),
                 ),
@@ -136,8 +191,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                   onPressed: () async {
                     if (docId == null) {
                       await _usersRef.add({
-                        'fullName':
-                            nameController.text.trim(), // Sửa thành fullName
+                        'fullName': nameController.text.trim(),
                         'email': emailController.text.trim(),
                         'gender': selectedGender,
                         'role': selectedRole,
@@ -145,14 +199,13 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                       });
                     } else {
                       await _usersRef.doc(docId).update({
-                        'fullName':
-                            nameController.text.trim(), // Sửa thành fullName
+                        'fullName': nameController.text.trim(),
                         'email': emailController.text.trim(),
                         'gender': selectedGender,
                         'role': selectedRole,
                       });
                     }
-                    if (context.mounted) Navigator.pop(context);
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
                   },
                   child: Text(docId == null ? 'Thêm' : 'Lưu'),
                 ),
@@ -164,12 +217,11 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     );
   }
 
-  // 2. DIALOG ĐỔI VAI TRÒ NHANH
   void _showChangeRoleDialog(String docId, String currentRole) {
-    String selectedRole = currentRole;
+    String selectedRole = _getValidRole(currentRole);
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -187,18 +239,16 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'Admin', child: Text('Admin')),
-                  DropdownMenuItem(value: 'Vip', child: Text('Vip')),
-                  DropdownMenuItem(value: 'User', child: Text('User')),
-                ],
+                items: _roleOptions
+                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                    .toList(),
                 onChanged: (val) {
                   if (val != null) setDialogState(() => selectedRole = val);
                 },
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child:
                       const Text('Hủy', style: TextStyle(color: Colors.grey)),
                 ),
@@ -207,7 +257,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                       backgroundColor: Colors.orangeAccent),
                   onPressed: () async {
                     await _usersRef.doc(docId).update({'role': selectedRole});
-                    if (context.mounted) Navigator.pop(context);
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
                   },
                   child: const Text('Xác nhận'),
                 ),
@@ -219,11 +269,10 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
     );
   }
 
-  // 3. DIALOG XÓA NGƯỜI DÙNG
   void _deleteUser(String docId, String name) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF181824),
         title:
             const Text('Xác nhận xóa', style: TextStyle(color: Colors.white)),
@@ -233,14 +282,14 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () async {
               await _usersRef.doc(docId).delete();
-              if (context.mounted) Navigator.pop(context);
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
             },
             child: const Text('Xóa'),
           ),
@@ -278,15 +327,12 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-
           Map<String, dynamic>? myData;
           if (snapshot.hasData &&
               snapshot.data != null &&
               snapshot.data!.exists) {
             myData = snapshot.data!.data() as Map<String, dynamic>?;
           }
-
-          // Lấy theo trường fullName từ Firestore (có fallback về 'name' cũ nếu cần)
           final String myName = myData?['fullName'] ??
               myData?['name'] ??
               myData?['email']?.split('@').first ??
@@ -317,7 +363,6 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                   ),
                   child: Column(
                     children: [
-                      // Avatar
                       CircleAvatar(
                         radius: 40,
                         backgroundColor: const Color(0xFF2563EB),
@@ -331,8 +376,6 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-
-                      // Tên
                       Text(
                         myName,
                         style: const TextStyle(
@@ -342,8 +385,6 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-
-                      // Badge Role
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 4),
@@ -364,13 +405,10 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 20),
                       Divider(
                           color: Colors.white.withOpacity(0.1), thickness: 1),
                       const SizedBox(height: 16),
-
-                      // Email Row
                       Row(
                         children: [
                           Container(
@@ -409,10 +447,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 16),
-
-                      // Gender Row
                       Row(
                         children: [
                           Container(
@@ -454,10 +489,139 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                     ],
                   ),
                 ),
-
-                const SizedBox(height: 28),
-
-                // ================= 2. PHẦN CHỨC NĂNG QUẢN TRỊ (CHỈ ADMIN MỚI THẤY) =================
+                const SizedBox(height: 24),
+                // ================= 2. PHẦN DANH SÁCH YÊU THÍCH =================
+                const Text(
+                  'Yêu Thích',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                StreamBuilder<QuerySnapshot>(
+                  stream: _likeService.getFavoriteMediaStream(),
+                  builder: (context, favSnap) {
+                    if (favSnap.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (!favSnap.hasData || favSnap.data!.docs.isEmpty) {
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF181824),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Text(
+                          'Chưa có phim nào trong danh sách yêu thích',
+                          style: TextStyle(color: Colors.grey),
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    }
+                    final favDocs = favSnap.data!.docs;
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: favDocs.length,
+                      itemBuilder: (context, index) {
+                        final favData =
+                            favDocs[index].data() as Map<String, dynamic>;
+                        final String docId = favDocs[index].id;
+                        final String url =
+                            favData['URL'] ?? favData['url'] ?? '';
+                        final String title =
+                            favData['title'] ?? favData['name'] ?? 'SaiGonPhim';
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF181824),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.05),
+                            ),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () {
+                                if (url.isNotEmpty) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => MediaWebViewScreen(
+                                        source: GenericMediaSource(
+                                          name: title,
+                                          url: url,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(14.0),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.favorite,
+                                      color: Colors.redAccent,
+                                      size: 24,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            title,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            url,
+                                            style: TextStyle(
+                                              color: Colors.grey[500],
+                                              fontSize: 12,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete_outline_rounded,
+                                        color: Colors.redAccent,
+                                        size: 22,
+                                      ),
+                                      onPressed: () =>
+                                          _likeService.removeLike(docId),
+                                      tooltip: 'Xóa khỏi yêu thích',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+                // ================= 3. PHẦN CHỨC NĂNG QUẢN TRỊ (CHỈ ADMIN MỚI THẤY) =================
                 if (isAdmin) ...[
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -479,24 +643,19 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-
-                  // Danh sách người dùng
                   StreamBuilder<QuerySnapshot>(
                     stream: _usersRef.snapshots(),
                     builder: (context, userSnap) {
                       if (userSnap.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
-
                       if (!userSnap.hasData || userSnap.data!.docs.isEmpty) {
                         return const Text(
                           'Chưa có dữ liệu danh sách người dùng',
                           style: TextStyle(color: Colors.grey),
                         );
                       }
-
                       final docs = userSnap.data!.docs;
-
                       return ListView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -504,14 +663,11 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                         itemBuilder: (context, index) {
                           final doc = docs[index];
                           final uData = doc.data() as Map<String, dynamic>;
-
-                          // Lấy theo fullName
                           final String uName =
                               uData['fullName'] ?? uData['name'] ?? 'Không tên';
                           final String uEmail = uData['email'] ?? 'Không email';
                           final String uGender = uData['gender'] ?? 'Chưa rõ';
                           final String uRole = uData['role'] ?? 'User';
-
                           return Container(
                             margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.all(14),
@@ -548,8 +704,6 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                                     ],
                                   ),
                                 ),
-
-                                // Thao tác Admin: Sửa, Đổi Role, Xóa
                                 Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -566,17 +720,17 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                                         currentGender: uGender,
                                         currentRole: uRole,
                                       ),
+                                      tooltip: 'Sửa thông tin',
                                     ),
                                     IconButton(
                                       icon: const Icon(
-                                        Icons.admin_panel_settings_outlined,
+                                        Icons.shield_outlined,
                                         color: Colors.orangeAccent,
                                         size: 22,
                                       ),
-                                      onPressed: () => _showChangeRoleDialog(
-                                        doc.id,
-                                        uRole,
-                                      ),
+                                      onPressed: () =>
+                                          _showChangeRoleDialog(doc.id, uRole),
+                                      tooltip: 'Đổi vai trò',
                                     ),
                                     IconButton(
                                       icon: const Icon(
@@ -586,6 +740,7 @@ class _AccountInfoScreenState extends State<AccountInfoScreen> {
                                       ),
                                       onPressed: () =>
                                           _deleteUser(doc.id, uName),
+                                      tooltip: 'Xóa người dùng',
                                     ),
                                   ],
                                 ),
