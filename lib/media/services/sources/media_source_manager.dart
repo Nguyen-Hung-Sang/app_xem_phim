@@ -6,15 +6,17 @@ import 'movie_3_source.dart';
 import 'movie_4_source.dart';
 import 'picture_1_source.dart';
 import 'picture_2_source.dart';
+import 'picture_3_source.dart';
 
 class MediaSourceManager {
   final List<BaseMediaSource> _registeredSources = [
     Movie1Source(),
     Movie2Source(),
     Movie3Source(),
-    Movie4Source(), // Bổ sung Nguồn Phim 4
+    Movie4Source(),
     Picture1Source(),
     Picture2Source(),
+    Picture3Source(),
   ];
 
   List<BaseMediaSource> get sources => _registeredSources;

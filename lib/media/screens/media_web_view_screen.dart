@@ -1,5 +1,6 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../services/sources/base_media_source.dart';
 import '../services/like_service.dart';
 
@@ -15,7 +16,7 @@ class MediaWebViewScreen extends StatefulWidget {
 }
 
 class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
-  late final WebViewController _controller;
+  InAppWebViewController? _controller;
   bool _isLoading = true;
 
   final LikeService _likeService = LikeService();
@@ -27,61 +28,6 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
     super.initState();
     _currentUrl = widget.source.currentUrl;
     _checkLikeStatus(_currentUrl);
-
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted);
-
-    final userAgent = widget.source.getHeaders()['User-Agent'];
-    if (userAgent != null && userAgent.isNotEmpty) {
-      _controller.setUserAgent(userAgent);
-    }
-
-    _controller
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (String url) {
-            if (mounted) {
-              setState(() {
-                _isLoading = true;
-                _currentUrl = url;
-              });
-            }
-            _checkLikeStatus(url);
-          },
-          onPageFinished: (String url) async {
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-                _currentUrl = url;
-              });
-            }
-            _checkLikeStatus(url);
-
-            final script = widget.source.getAdBlockScript();
-            if (script.isNotEmpty) {
-              await _controller.runJavaScript(script);
-            }
-          },
-          onNavigationRequest: (NavigationRequest request) {
-            final url = request.url.toLowerCase();
-            if (url.contains('popunder') || url.contains('yo88')) {
-              return NavigationDecision.prevent;
-            }
-
-            final blockedDomains = widget.source.getBlockedAdDomains();
-            for (var domain in blockedDomains) {
-              if (domain.isNotEmpty && url.contains(domain.toLowerCase())) {
-                return NavigationDecision.prevent;
-              }
-            }
-            return NavigationDecision.navigate;
-          },
-        ),
-      )
-      ..loadRequest(
-        Uri.parse(widget.source.currentUrl),
-        headers: widget.source.getHeaders(),
-      );
   }
 
   Future<void> _checkLikeStatus(String url) async {
@@ -142,8 +88,8 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
             icon: const Icon(Icons.arrow_back_ios_new,
                 color: Colors.white, size: 20),
             onPressed: () async {
-              if (await _controller.canGoBack()) {
-                await _controller.goBack();
+              if (await _controller?.canGoBack() ?? false) {
+                await _controller?.goBack();
               }
             },
             tooltip: 'Trang trước',
@@ -152,22 +98,140 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
             icon: const Icon(Icons.arrow_forward_ios,
                 color: Colors.white, size: 20),
             onPressed: () async {
-              if (await _controller.canGoForward()) {
-                await _controller.goForward();
+              if (await _controller?.canGoForward() ?? false) {
+                await _controller?.goForward();
               }
             },
             tooltip: 'Trang sau',
           ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () => _controller.reload(),
+            onPressed: () => _controller?.reload(),
             tooltip: 'Tải lại',
           ),
         ],
       ),
       body: Stack(
         children: [
-          WebViewWidget(controller: _controller),
+          InAppWebView(
+            initialUrlRequest: URLRequest(
+              url: WebUri(widget.source.currentUrl),
+              headers: widget.source.getHeaders(),
+            ),
+            initialSettings: InAppWebViewSettings(
+              javaScriptEnabled: true,
+              useShouldOverrideUrlLoading:
+                  true, // Bật tính năng chặn nhảy trang
+              useShouldInterceptRequest:
+                  true, // Bật tính năng chặn request mạng
+              javaScriptCanOpenWindowsAutomatically: false, // Chặn tự mở popup
+              supportMultipleWindows: false,
+              userAgent: widget.source.getHeaders()['User-Agent'] ?? '',
+            ),
+            onWebViewCreated: (controller) {
+              _controller = controller;
+            },
+            onLoadStart: (controller, url) {
+              if (mounted) {
+                setState(() {
+                  _isLoading = true;
+                  _currentUrl = url.toString();
+                });
+              }
+              _checkLikeStatus(url.toString());
+            },
+            onLoadStop: (controller, url) async {
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                  _currentUrl = url.toString();
+                });
+              }
+              _checkLikeStatus(url.toString());
+
+              // Tiêm Javascript để xóa overlay tàng hình
+              final script = widget.source.getAdBlockScript();
+              if (script.isNotEmpty) {
+                await controller.evaluateJavascript(source: script);
+              }
+            },
+
+            // 1. CHẶN NẢY TRANG / MỞ TAB MỚI
+            shouldOverrideUrlLoading: (controller, navigationAction) async {
+              final url = navigationAction.request.url.toString().toLowerCase();
+
+              // Chặn mở app ngoài (CH Play, Shopee, App Cá cược...)
+              if (url.startsWith('intent://') ||
+                  url.startsWith('market://') ||
+                  url.startsWith('app://') ||
+                  url.startsWith('taobaowebview://')) {
+                debugPrint('[AdBlock] Đã chặn mở app ngoài: $url');
+                return NavigationActionPolicy.CANCEL;
+              }
+
+              // Chặn theo từ khóa phổ biến
+              final adKeywords = [
+                'popunder',
+                'yo88',
+                'bet',
+                'casino',
+                'ads',
+                'exoclick',
+                'juicy',
+                'shopee',
+                'lazada'
+              ];
+              if (adKeywords.any((keyword) => url.contains(keyword))) {
+                debugPrint('[AdBlock] Đã chặn nảy trang QC: $url');
+                return NavigationActionPolicy.CANCEL;
+              }
+
+              // Chặn theo domain từ BaseMediaSource
+              final blockedDomains = widget.source.getBlockedAdDomains();
+              for (var domain in blockedDomains) {
+                if (domain.isNotEmpty && url.contains(domain.toLowerCase())) {
+                  debugPrint('[AdBlock] Đã chặn nảy trang tới domain QC: $url');
+                  return NavigationActionPolicy.CANCEL;
+                }
+              }
+
+              return NavigationActionPolicy.ALLOW;
+            },
+
+            // 2. CHẶN TẢI QUẢNG CÁO TỪ TẦNG MẠNG (GIỐNG CỐC CỐC)
+            shouldInterceptRequest: (controller, request) async {
+              final url = request.url.toString().toLowerCase();
+              final blockedDomains = widget.source.getBlockedAdDomains();
+
+              bool isAdRequest = false;
+
+              // Kiểm tra xem request (iframe, js, css, ảnh) có gọi đến máy chủ quảng cáo không
+              for (var domain in blockedDomains) {
+                if (domain.isNotEmpty && url.contains(domain.toLowerCase())) {
+                  isAdRequest = true;
+                  break;
+                }
+              }
+
+              // Chặn file script độc hại phổ biến
+              if (url.contains('ads.js') ||
+                  url.contains('popunder.js') ||
+                  url.contains('beacon.min.js')) {
+                isAdRequest = true;
+              }
+
+              if (isAdRequest) {
+                debugPrint('[AdBlock] Đã chặn tải tài nguyên QC: $url');
+                // Trả về file rỗng -> Bóp chết đoạn mã quảng cáo không cho tải về máy
+                return WebResourceResponse(
+                  contentType: "text/plain",
+                  data: Uint8List.fromList([]),
+                );
+              }
+
+              return null; // Trả về null nghĩa là cho phép tải bình thường
+            },
+          ),
           if (_isLoading)
             const Center(
               child: CircularProgressIndicator(

@@ -4,7 +4,7 @@ class Movie4Source extends BaseMediaSource {
   Movie4Source()
       : super(
           id: 'Movie 4',
-          name: 'Nguồn Phim 4',
+          name: 'X nhau',
           type: 'movie',
           defaultUrl: 'https://xnhau.soy/',
           tag: 'Phim HD',

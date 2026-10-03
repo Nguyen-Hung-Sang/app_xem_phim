@@ -603,7 +603,7 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                     elevation: 4,
                   ),
                   child: const Text(
-                    'Dùng Nguồn Này Để Xem Phim',
+                    'Dùng Nguồn Này Để Xem',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
