@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -118,18 +119,43 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
               url: WebUri(widget.source.currentUrl),
               headers: widget.source.getHeaders(),
             ),
+            // Tiêm Script ngay từ thời điểm Document vừa bắt đầu tải
+            initialUserScripts: UnmodifiableListView([
+              UserScript(
+                source: widget.source.getAdBlockScript(),
+                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+              ),
+            ]),
             initialSettings: InAppWebViewSettings(
               javaScriptEnabled: true,
               useShouldOverrideUrlLoading:
                   true, // Bật tính năng chặn nhảy trang
               useShouldInterceptRequest:
                   true, // Bật tính năng chặn request mạng
-              javaScriptCanOpenWindowsAutomatically: false, // Chặn tự mở popup
-              supportMultipleWindows: false,
+              javaScriptCanOpenWindowsAutomatically: true,
+              supportMultipleWindows:
+                  true, // Cho phép xử lý tạo window để hứng qua onCreateWindow
               userAgent: widget.source.getHeaders()['User-Agent'] ?? '',
+              hardwareAcceleration: true,
+              transparentBackground: false,
+              allowsInlineMediaPlayback: true,
             ),
             onWebViewCreated: (controller) {
               _controller = controller;
+            },
+            // Bắt và chuyển hướng các link mở cửa sổ mới về tab hiện tại nếu không phải quảng cáo
+            onCreateWindow: (controller, createWindowAction) async {
+              final url = createWindowAction.request.url;
+              if (url != null) {
+                final urlStr = url.toString().toLowerCase();
+                final blockedDomains = widget.source.getBlockedAdDomains();
+                bool isAd = blockedDomains.any(
+                    (d) => d.isNotEmpty && urlStr.contains(d.toLowerCase()));
+                if (!isAd) {
+                  controller.loadUrl(urlRequest: URLRequest(url: url));
+                }
+              }
+              return true;
             },
             onLoadStart: (controller, url) {
               if (mounted) {
@@ -149,14 +175,13 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
               }
               _checkLikeStatus(url.toString());
 
-              // Tiêm Javascript để xóa overlay tàng hình
               final script = widget.source.getAdBlockScript();
               if (script.isNotEmpty) {
                 await controller.evaluateJavascript(source: script);
               }
             },
 
-            // 1. CHẶN NẢY TRANG / MỞ TAB MỚI
+            // 1. CHẶN NẢY TRANG / MỞ TAB MỚI QUẢNG CÁO
             shouldOverrideUrlLoading: (controller, navigationAction) async {
               final url = navigationAction.request.url.toString().toLowerCase();
 
@@ -169,17 +194,19 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
                 return NavigationActionPolicy.CANCEL;
               }
 
-              // Chặn theo từ khóa phổ biến
+              // Chặn theo từ khóa quảng cáo
               final adKeywords = [
                 'popunder',
                 'yo88',
                 'bet',
                 'casino',
-                'ads',
                 'exoclick',
                 'juicy',
                 'shopee',
-                'lazada'
+                'lazada',
+                'pemsrv',
+                'magsrv',
+                'splash.php'
               ];
               if (adKeywords.any((keyword) => url.contains(keyword))) {
                 debugPrint('[AdBlock] Đã chặn nảy trang QC: $url');
@@ -198,7 +225,7 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
               return NavigationActionPolicy.ALLOW;
             },
 
-            // 2. CHẶN TẢI QUẢNG CÁO TỪ TẦNG MẠNG (GIỐNG CỐC CỐC)
+            // 2. CHẶN TẢI QUẢNG CÁO TỪ TẦNG MẠNG
             shouldInterceptRequest: (controller, request) async {
               final url = request.url.toString().toLowerCase();
               final blockedDomains = widget.source.getBlockedAdDomains();
@@ -216,7 +243,8 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
               // Chặn file script độc hại phổ biến
               if (url.contains('ads.js') ||
                   url.contains('popunder.js') ||
-                  url.contains('beacon.min.js')) {
+                  url.contains('beacon.min.js') ||
+                  url.contains('splash.php')) {
                 isAdRequest = true;
               }
 
