@@ -29,6 +29,43 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
     super.initState();
     _currentUrl = widget.source.currentUrl;
     _checkLikeStatus(_currentUrl);
+    _setupProxyIfNeeded();
+  }
+
+  // Kích hoạt Proxy/VPN cho nguồn bị nhà mạng chặn (tương thích flutter_inappwebview 6.x)
+  Future<void> _setupProxyIfNeeded() async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
+
+    if (widget.source.isVpnRequired &&
+        widget.source.proxyUrl != null &&
+        widget.source.proxyUrl!.isNotEmpty) {
+      try {
+        await ProxyController.instance().setProxyOverride(
+          settings: ProxySettings(
+            proxyRules: [
+              ProxyRule(url: widget.source.proxyUrl!),
+            ],
+          ),
+        );
+        debugPrint('[Proxy/VPN] Đã kích hoạt Proxy cho ${widget.source.name}');
+      } catch (e) {
+        debugPrint('[Proxy/VPN] Lỗi khi bật Proxy: $e');
+      }
+    } else {
+      try {
+        await ProxyController.instance().clearProxyOverride();
+      } catch (_) {}
+    }
+  }
+
+  @override
+  void dispose() {
+    // Xóa Proxy khi thoát màn hình theo chuẩn v6.x
+    if (widget.source.isVpnRequired) {
+      ProxyController.instance().clearProxyOverride();
+    }
+    super.dispose();
   }
 
   Future<void> _checkLikeStatus(String url) async {
@@ -142,6 +179,11 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
             ),
             onWebViewCreated: (controller) {
               _controller = controller;
+            },
+            // Bỏ qua lỗi chứng chỉ SSL khi kết nối thông qua Proxy (Sửa tên callback chính xác)
+            onReceivedServerTrustAuthRequest: (controller, challenge) async {
+              return ServerTrustAuthResponse(
+                  action: ServerTrustAuthResponseAction.PROCEED);
             },
             // Bắt và chuyển hướng các link mở cửa sổ mới về tab hiện tại nếu không phải quảng cáo
             onCreateWindow: (controller, createWindowAction) async {

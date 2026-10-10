@@ -4,6 +4,7 @@ import 'movie_1_source.dart';
 import 'movie_2_source.dart';
 import 'movie_3_source.dart';
 import 'movie_4_source.dart';
+import 'movie_5_source.dart';
 import 'picture_1_source.dart';
 import 'picture_2_source.dart';
 import 'picture_3_source.dart';
@@ -14,6 +15,7 @@ class MediaSourceManager {
     Movie2Source(),
     Movie3Source(),
     Movie4Source(),
+    Movie5Source(),
     Picture1Source(),
     Picture2Source(),
     Picture3Source(),

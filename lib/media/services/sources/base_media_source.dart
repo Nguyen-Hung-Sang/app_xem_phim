@@ -56,6 +56,10 @@ abstract class BaseMediaSource {
   // Danh sách các domain quảng cáo bị chặn tải (ghi đè ở từng lớp con nếu cần)
   List<String> getBlockedAdDomains() => [];
 
-  // BỔ SUNG: Mã JavaScript chặn Popup & Banner quảng cáo dành riêng cho từng nguồn
+  // Mã JavaScript chặn Popup & Banner quảng cáo dành riêng cho từng nguồn
   String getAdBlockScript() => '';
+
+  // BỔ SUNG: Cấu hình Proxy/VPN cho các nguồn bị nhà mạng chặn (mặc định tắt)
+  bool get isVpnRequired => false;
+  String? get proxyUrl => null;
 }
