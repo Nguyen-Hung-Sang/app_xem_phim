@@ -22,6 +22,7 @@ dependencies:
   # --- THƯ VIỆN LƯU BỘ NHỚ VÀ XEM PHIM ---
   flutter_inappwebview: ^6.1.5 # Trình duyệt WebView
   shared_preferences: ^2.5.5 # Lưu nhớ mật khẩu & trạng thái đăng nhập
+  # Đã gỡ bỏ 'floating' để giải quyết triệt để xung đột Kotlin Gradle Plugin
 
 dev_dependencies:
   flutter_test:

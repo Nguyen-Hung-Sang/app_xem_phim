@@ -1,6 +1,8 @@
 import 'dart:collection';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../services/sources/base_media_source.dart';
 import '../services/like_service.dart';
@@ -19,7 +21,6 @@ class MediaWebViewScreen extends StatefulWidget {
 class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
   InAppWebViewController? _controller;
   bool _isLoading = true;
-
   final LikeService _likeService = LikeService();
   String _currentUrl = '';
   bool _isLiked = false;
@@ -32,11 +33,9 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
     _setupProxyIfNeeded();
   }
 
-  // Kích hoạt Proxy/VPN cho nguồn bị nhà mạng chặn (tương thích flutter_inappwebview 6.x)
   Future<void> _setupProxyIfNeeded() async {
     await Future.delayed(const Duration(milliseconds: 100));
     if (!mounted) return;
-
     if (widget.source.isVpnRequired &&
         widget.source.proxyUrl != null &&
         widget.source.proxyUrl!.isNotEmpty) {
@@ -48,10 +47,7 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
             ],
           ),
         );
-        debugPrint('[Proxy/VPN] Đã kích hoạt Proxy cho ${widget.source.name}');
-      } catch (e) {
-        debugPrint('[Proxy/VPN] Lỗi khi bật Proxy: $e');
-      }
+      } catch (_) {}
     } else {
       try {
         await ProxyController.instance().clearProxyOverride();
@@ -61,7 +57,6 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
 
   @override
   void dispose() {
-    // Xóa Proxy khi thoát màn hình theo chuẩn v6.x
     if (widget.source.isVpnRequired) {
       ProxyController.instance().clearProxyOverride();
     }
@@ -80,13 +75,11 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
 
   Future<void> _toggleLike() async {
     if (_currentUrl.isEmpty) return;
-
     final isNowLiked = await _likeService.toggleLike(
       mediaId: _currentUrl,
       title: widget.source.name,
       url: _currentUrl,
     );
-
     if (mounted) {
       setState(() {
         _isLiked = isNowLiked;
@@ -95,7 +88,7 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _isLiked ? 'Đã lưu vào danh sách yêu thích' : 'Đã bỏ yêu thích',
+            _isLiked ? 'Đã lưu danh sách yêu thích' : 'Đã bỏ yêu thích',
           ),
           duration: const Duration(seconds: 2),
         ),
@@ -156,7 +149,6 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
               url: WebUri(widget.source.currentUrl),
               headers: widget.source.getHeaders(),
             ),
-            // Tiêm Script ngay từ thời điểm Document vừa bắt đầu tải
             initialUserScripts: UnmodifiableListView([
               UserScript(
                 source: widget.source.getAdBlockScript(),
@@ -165,27 +157,27 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
             ]),
             initialSettings: InAppWebViewSettings(
               javaScriptEnabled: true,
-              useShouldOverrideUrlLoading:
-                  true, // Bật tính năng chặn nhảy trang
-              useShouldInterceptRequest:
-                  true, // Bật tính năng chặn request mạng
+              useShouldOverrideUrlLoading: true,
+              useShouldInterceptRequest: true,
               javaScriptCanOpenWindowsAutomatically: true,
-              supportMultipleWindows:
-                  true, // Cho phép xử lý tạo window để hứng qua onCreateWindow
+              supportMultipleWindows: true,
               userAgent: widget.source.getHeaders()['User-Agent'] ?? '',
               hardwareAcceleration: true,
               transparentBackground: false,
               allowsInlineMediaPlayback: true,
+              mediaPlaybackRequiresUserGesture: false,
+              cacheEnabled: true,
+              clearCache: false,
+              useHybridComposition:
+                  true, // Khắc phục triệt để lỗi treo UI Thread / Crash
             ),
             onWebViewCreated: (controller) {
               _controller = controller;
             },
-            // Bỏ qua lỗi chứng chỉ SSL khi kết nối thông qua Proxy (Sửa tên callback chính xác)
             onReceivedServerTrustAuthRequest: (controller, challenge) async {
               return ServerTrustAuthResponse(
                   action: ServerTrustAuthResponseAction.PROCEED);
             },
-            // Bắt và chuyển hướng các link mở cửa sổ mới về tab hiện tại nếu không phải quảng cáo
             onCreateWindow: (controller, createWindowAction) async {
               final url = createWindowAction.request.url;
               if (url != null) {
@@ -216,27 +208,19 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
                 });
               }
               _checkLikeStatus(url.toString());
-
               final script = widget.source.getAdBlockScript();
               if (script.isNotEmpty) {
                 await controller.evaluateJavascript(source: script);
               }
             },
-
-            // 1. CHẶN NẢY TRANG / MỞ TAB MỚI QUẢNG CÁO
             shouldOverrideUrlLoading: (controller, navigationAction) async {
               final url = navigationAction.request.url.toString().toLowerCase();
-
-              // Chặn mở app ngoài (CH Play, Shopee, App Cá cược...)
               if (url.startsWith('intent://') ||
                   url.startsWith('market://') ||
                   url.startsWith('app://') ||
                   url.startsWith('taobaowebview://')) {
-                debugPrint('[AdBlock] Đã chặn mở app ngoài: $url');
                 return NavigationActionPolicy.CANCEL;
               }
-
-              // Chặn theo từ khóa quảng cáo
               final adKeywords = [
                 'popunder',
                 'yo88',
@@ -251,55 +235,40 @@ class _MediaWebViewScreenState extends State<MediaWebViewScreen> {
                 'splash.php'
               ];
               if (adKeywords.any((keyword) => url.contains(keyword))) {
-                debugPrint('[AdBlock] Đã chặn nảy trang QC: $url');
                 return NavigationActionPolicy.CANCEL;
               }
-
-              // Chặn theo domain từ BaseMediaSource
               final blockedDomains = widget.source.getBlockedAdDomains();
               for (var domain in blockedDomains) {
                 if (domain.isNotEmpty && url.contains(domain.toLowerCase())) {
-                  debugPrint('[AdBlock] Đã chặn nảy trang tới domain QC: $url');
                   return NavigationActionPolicy.CANCEL;
                 }
               }
-
               return NavigationActionPolicy.ALLOW;
             },
-
-            // 2. CHẶN TẢI QUẢNG CÁO TỪ TẦNG MẠNG
             shouldInterceptRequest: (controller, request) async {
               final url = request.url.toString().toLowerCase();
               final blockedDomains = widget.source.getBlockedAdDomains();
-
               bool isAdRequest = false;
-
-              // Kiểm tra xem request (iframe, js, css, ảnh) có gọi đến máy chủ quảng cáo không
               for (var domain in blockedDomains) {
                 if (domain.isNotEmpty && url.contains(domain.toLowerCase())) {
                   isAdRequest = true;
                   break;
                 }
               }
-
-              // Chặn file script độc hại phổ biến
               if (url.contains('ads.js') ||
                   url.contains('popunder.js') ||
                   url.contains('beacon.min.js') ||
+                  url.contains('cloudflareinsights.com') ||
                   url.contains('splash.php')) {
                 isAdRequest = true;
               }
-
               if (isAdRequest) {
-                debugPrint('[AdBlock] Đã chặn tải tài nguyên QC: $url');
-                // Trả về file rỗng -> Bóp chết đoạn mã quảng cáo không cho tải về máy
                 return WebResourceResponse(
                   contentType: "text/plain",
                   data: Uint8List.fromList([]),
                 );
               }
-
-              return null; // Trả về null nghĩa là cho phép tải bình thường
+              return null;
             },
           ),
           if (_isLoading)

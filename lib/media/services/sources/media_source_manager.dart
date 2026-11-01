@@ -35,17 +35,17 @@ class MediaSourceManager {
         .snapshots()
         .map((snapshot) {
       for (var doc in snapshot.docs) {
-        // Tìm các nguồn có ID khớp chính xác với Document ID trên Firestore
+        // Tìm các nguồn có ID khớp chính xác với Document ID trên Firestore[cite: 3]
         final matches = _registeredSources.where(
           (s) => s.id.trim().toLowerCase() == doc.id.trim().toLowerCase(),
         );
-
-        // Chỉ cập nhật URL khi tìm thấy nguồn khớp
+        // Chỉ cập nhật URL khi tìm thấy nguồn khớp[cite: 3]
         if (matches.isNotEmpty) {
           matches.first.updateUrlFromFirestore(doc);
         }
       }
-      return _registeredSources;
+      // Trả về một bản sao danh sách mới để StreamBuilder kích hoạt rebuild UI ngay lập tức
+      return List<BaseMediaSource>.from(_registeredSources);
     });
   }
 }

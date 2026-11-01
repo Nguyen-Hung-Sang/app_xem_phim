@@ -173,7 +173,7 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. CARD PROFILE NGƯỜI DÙNG (Hiển thị fullName & đồng bộ userRole)
+                    // 1. CARD PROFILE NGƯỜI DÙNG
                     StreamBuilder<DocumentSnapshot>(
                       stream: currentUser != null
                           ? FirebaseFirestore.instance
@@ -194,8 +194,7 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                               snapshot.data!.data() as Map<String, dynamic>?;
                           if (data != null) {
                             userRole = data['role'] ?? 'User';
-                            _currentUserRole =
-                                userRole; // Đồng bộ Vai trò vào State
+                            _currentUserRole = userRole;
 
                             if (data['fullName'] != null &&
                                 data['fullName'].toString().trim().isNotEmpty) {
@@ -282,7 +281,7 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                     ),
                     const SizedBox(height: 20),
 
-                    // 2. DANH SÁCH SERVER LIÊN KẾT TỪ CÁC FILE NGUỒN RIÊNG
+                    // 2. DANH SÁCH SERVER VÀ PHÂN NHÓM EXPANSIONTILE (TRỎ XUỐNG DẠNG CARD)
                     StreamBuilder<List<BaseMediaSource>>(
                       stream: _sourceManager.getSourcesStream(),
                       builder: (context, snapshot) {
@@ -290,8 +289,10 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                             snapshot.data ?? _sourceManager.sources;
                         final bool isAdmin =
                             _currentUserRole.toLowerCase() == 'admin';
+                        final bool isVipOrAdmin =
+                            isAdmin || _currentUserRole.toLowerCase() == 'vip';
 
-                        // Ẩn tất cả các nguồn mà Role hiện tại không có quyền truy cập (ngoại trừ Admin)
+                        // Lọc nguồn theo quyền hạn
                         final sources = isAdmin
                             ? rawSources
                             : rawSources
@@ -313,7 +314,13 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                           );
                         }
 
-                        // Đồng bộ _selectedSource với instance mới nhất và đảm bảo nằm trong danh sách đã lọc
+                        // Phân tách nguồn thành nhóm Thường và nhóm VIP/Admin
+                        final normalSources =
+                            sources.where((s) => s.hasAccess('User')).toList();
+                        final vipSources =
+                            sources.where((s) => !s.hasAccess('User')).toList();
+
+                        // Đồng bộ _selectedSource
                         if (_selectedSource == null ||
                             !sources.any((s) => s.id == _selectedSource!.id)) {
                           _selectedSource = sources.first;
@@ -327,7 +334,7 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // KHUNG HIỂN THỊ NGUỒN ĐANG CHỌN (Active Source Box)
+                            // KHUNG HIỂN THỊ NGUỒN ĐANG CHỌN
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.all(16),
@@ -376,7 +383,6 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
-                                        // Đã ẩn Text URL hiển thị ở khung đỏ
                                       ],
                                     ),
                                   ),
@@ -396,7 +402,192 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                             ),
                             const SizedBox(height: 24),
 
-                            // TIÊU ĐỀ DANH SÁCH SERVER
+                            // KHU VỰC EXPANSIONTILE "LINK VIP & ĐẶC QUYỀN" (Mặc định ẩn, bấm vào trỏ xuống tràn danh sách card kèm nút sửa)
+                            if (vipSources.isNotEmpty && isVipOrAdmin) ...[
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF181824),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: Colors.amber.withOpacity(0.5),
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Theme(
+                                  data: Theme.of(context).copyWith(
+                                      dividerColor: Colors.transparent),
+                                  child: ExpansionTile(
+                                    initiallyExpanded:
+                                        false, // Mặc định thu gọn khi vào app
+                                    iconColor: Colors.amber,
+                                    collapsedIconColor: Colors.amber,
+                                    title: const Text(
+                                      'Khu vực Link VIP & Đặc quyền',
+                                      style: TextStyle(
+                                        color: Colors.amber,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    children: vipSources.map((source) {
+                                      final isSelected =
+                                          _selectedSource?.id == source.id;
+
+                                      return GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedSource = source;
+                                          });
+                                        },
+                                        child: AnimatedContainer(
+                                          duration:
+                                              const Duration(milliseconds: 200),
+                                          margin: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 6),
+                                          padding: const EdgeInsets.all(14),
+                                          decoration: BoxDecoration(
+                                            color: isSelected
+                                                ? const Color(0xFF222232)
+                                                : const Color(0xFF181824),
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            border: Border.all(
+                                              color: isSelected
+                                                  ? Colors.amber
+                                                  : Colors.transparent,
+                                              width: 2,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Container(
+                                                margin: const EdgeInsets.only(
+                                                    top: 6),
+                                                width: 10,
+                                                height: 10,
+                                                decoration: const BoxDecoration(
+                                                  color: Colors.amber,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: Text(
+                                                            source.name,
+                                                            style:
+                                                                const TextStyle(
+                                                              color:
+                                                                  Colors.white,
+                                                              fontSize: 16,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        Container(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                            horizontal: 8,
+                                                            vertical: 3,
+                                                          ),
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: Colors.amber,
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        6),
+                                                          ),
+                                                          child: Text(
+                                                            source.badge,
+                                                            style:
+                                                                const TextStyle(
+                                                              color:
+                                                                  Colors.black,
+                                                              fontSize: 10,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(
+                                                            width: 8),
+                                                        Text(
+                                                          source.status,
+                                                          style:
+                                                              const TextStyle(
+                                                            color: Colors
+                                                                .amberAccent,
+                                                            fontSize: 12,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    Container(
+                                                      padding: const EdgeInsets
+                                                          .symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 4,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.white
+                                                            .withOpacity(0.08),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(6),
+                                                      ),
+                                                      child: Text(
+                                                        source.tag,
+                                                        style: const TextStyle(
+                                                          color: Colors.grey,
+                                                          fontSize: 11,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              // Nút chỉnh sửa link hình cây bút dành cho Admin ở từng nguồn VIP
+                                              if (isAdmin)
+                                                IconButton(
+                                                  icon: const Icon(
+                                                    Icons.edit_outlined,
+                                                    color: Colors.amber,
+                                                    size: 20,
+                                                  ),
+                                                  tooltip:
+                                                      'Chỉnh sửa nguồn VIP này',
+                                                  onPressed: () =>
+                                                      _showEditUrlDialog(
+                                                          context, source),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                            ],
+
+                            // TIÊU ĐỀ DANH SÁCH SERVER THƯỜNG
                             const Text(
                               'Danh sách Server Web khả dụng',
                               style: TextStyle(
@@ -407,13 +598,13 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                             ),
                             const SizedBox(height: 12),
 
-                            // RENDER DANH SÁCH CÁC FILE SERVER
+                            // RENDER DANH SÁCH CÁC FILE SERVER THƯỜNG
                             ListView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
-                              itemCount: sources.length,
+                              itemCount: normalSources.length,
                               itemBuilder: (context, index) {
-                                final source = sources[index];
+                                final source = normalSources[index];
                                 final isSelected =
                                     _selectedSource?.id == source.id;
 
@@ -443,7 +634,6 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        // Chấm xanh báo trạng thái
                                         Container(
                                           margin: const EdgeInsets.only(top: 6),
                                           width: 10,
@@ -454,8 +644,6 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                           ),
                                         ),
                                         const SizedBox(width: 12),
-
-                                        // Nội dung từng file Server
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment:
@@ -474,7 +662,6 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                                       ),
                                                     ),
                                                   ),
-                                                  // Badge Màu Cam
                                                   Container(
                                                     padding: const EdgeInsets
                                                         .symmetric(
@@ -509,10 +696,7 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                                   ),
                                                 ],
                                               ),
-                                              // Đã ẩn Text URL ở khung đỏ trong danh sách
                                               const SizedBox(height: 8),
-
-                                              // Tag Phim
                                               Container(
                                                 padding:
                                                     const EdgeInsets.symmetric(
@@ -536,7 +720,6 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
                                             ],
                                           ),
                                         ),
-
                                         if (isAdmin)
                                           IconButton(
                                             icon: const Icon(
@@ -563,7 +746,7 @@ class _SelectSourceScreenState extends State<SelectSourceScreen> {
               ),
             ),
 
-            // 3. NÚT XÁC NHẬN CHỌN NGUỒN VÀ KIỂM TRA QUYỀN TRUY CẬP (ROLE CHECK)
+            // 3. NÚT XÁC NHẬN CHỌN NGUỒN
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: SizedBox(
